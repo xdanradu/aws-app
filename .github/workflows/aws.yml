@@ -38,43 +38,45 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
+    - name: Generate deployment package
+      run: zip -r deploy.zip * -x "**node_modules**"
+
+    - name: Get timestamp
+      uses: gerred/actions/current-time@master
+      id: current-time
+
+    - name: Run string replace
+      uses: frabert/replace-string-action@master
+      id: format-time
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+        pattern: '[:\.]+'
+        string: "${{ steps.current-time.outputs.time }}"
+        replace-with: '-'
+        flags: 'g'
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+    - name: Beanstalk Deploy
+      uses: einaregilsson/beanstalk-deploy@v9
+      with:
+        # AWS Access Key
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        # AWS Secret Key
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        # AWS Region
+        region: us-east-1
+        # Beanstalk application name
+        application_name: PythonApp
+        # Beanstalk environment name
+        environment_name: Pythonapp-env
+        # Version label for new Beanstalk version
+        version_label: "my-app-${{ steps.format-time.outputs.replaced }}"
+        # Zip file with the version to deploy. If skipped the action will deploy existing version.
+        deployment_package: deploy.zip
+        # If set to "true" then the action will deploy an existing version with the given version_label if it already exists, but otherwise create the version and deploy it.
+        # use_existing_version_if_available: # optional
+        # Whether the action should wait for the deployment to finish and log status messages during the wait. Default is "true". If set to "false" the action will start the deployment on Beanstalk and then exit.
+        # wait_for_deployment: # optional
+        # How many seconds to wait for the environment to return to Green state after deployment is finished. Default is 30 seconds.
+        # wait_for_environment_recovery: # optional
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: github-app
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Build a docker container and
-        # push it to ECR so that it can
-        # be deployed to ECS.
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-#    - name: Fill in the new image ID in the Amazon ECS task definition
-#      id: task-def
-#      uses: aws-actions/amazon-ecs-render-task-definition@v1
-#      with:
-#        task-definition: task-definition.json
-#        container-name: github-container
-#        image: ${{ steps.build-image.outputs.image }}
-#
-#    - name: Deploy Amazon ECS task definition
-#      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-#      with:
-#        task-definition: ${{ steps.task-def.outputs.task-definition }}
-#        service: github-service
-#        cluster: default
-#        wait-for-service-stability: true
+    - name: Deployed!
+      run: echo App deployed to ELB
