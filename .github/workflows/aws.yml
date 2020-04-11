@@ -55,8 +55,7 @@ jobs:
       
     - name: Deployed!
       run: echo App deployed to ELB
-      
-on:
+
   release:
     types: [created]
 
