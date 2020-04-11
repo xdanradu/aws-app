@@ -27,7 +27,7 @@ welcome = """
 <html>
 </head>
 <body id="sample">
-  <h1>Hello Diana!</h1>
+  <h1>Hello Dan!</h1>
 </body>
 </html>
 """
